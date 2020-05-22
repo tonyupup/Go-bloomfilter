@@ -15,6 +15,7 @@ type BloomFilter interface {
 	Exist([]byte) bool
 	Add([]byte) error
 	Count() uint64
+	Close() error
 }
 
 type BloomFiltertor struct {
@@ -76,4 +77,8 @@ func (bf *BloomFiltertor) hash(data []byte) []uint64 {
 		fun.Reset()
 	}
 	return hashResult
+}
+
+func (bf *BloomFiltertor) Close() error {
+	return bf.stroge.close()
 }
