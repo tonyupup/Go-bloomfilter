@@ -1,10 +1,12 @@
 package main
 
 import (
-	"github.com/tonyupup/Go-bloomfilter/filter"
-
 	"fmt"
+
+	"github.com/tonyupup/Go-bloomfilter/filter"
 )
+
+
 
 func main() {
 	// conn := redis.NewClient(&redis.Options{
@@ -23,4 +25,5 @@ func main() {
 	fmt.Println(bf.Exist([]byte("nihao")))
 	bf.Add([]byte("nihao1"))
 	fmt.Println(bf.Exist([]byte("nihao2")))
+
 }

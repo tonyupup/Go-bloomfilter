@@ -1,9 +1,9 @@
 package filter
 
 import (
+	"encoding/gob"
 	"errors"
 	"os"
-	"strconv"
 
 	redis "github.com/go-redis/redis/v7"
 )
@@ -84,9 +84,12 @@ func (rs *RedisStroge) close() error {
 	return nil
 }
 
+type _E struct {
+	C    uint64
+	Data []uint8
+}
 type FileStroge struct {
-	c    uint64
-	data []uint8
+	_E
 	path string
 }
 
@@ -98,7 +101,7 @@ func (fs *FileStroge) exist(data []uint64) bool {
 	for _, i := range data {
 		x, y := i/8, i%8
 		// fs.file.ReadAt(m, int64(x))
-		if (uint8(fs.data[x]) & (1 << (7 - y))) == 0 {
+		if (uint8(fs.Data[x]) & (1 << (7 - y))) == 0 {
 			return false
 		}
 	}
@@ -108,7 +111,7 @@ func (fs *FileStroge) add(data []uint64) error {
 	// m := make([]byte, 1)
 	for _, i := range data {
 		x, y := i/8, i%8
-		fs.data[x] = fs.data[x] | (1 << (7 - y))
+		fs.Data[x] = fs.Data[x] | (1 << (7 - y))
 		// fs.file.Seek(int64(x), 0)
 		// fs.file.Read(m)
 		// fs.file.Seek(int64(x), 0)
@@ -117,7 +120,7 @@ func (fs *FileStroge) add(data []uint64) error {
 		// 	return false
 		// }
 	}
-	fs.c++
+	fs.C++
 	return nil
 }
 func (fs *FileStroge) close() error {
@@ -129,60 +132,46 @@ func (fs *FileStroge) close() error {
 		if err1 != nil {
 			return err1
 		}
+	} else {
+		file, err1 = os.OpenFile(fs.path, os.O_WRONLY, 0600)
+		if err1 != nil {
+			return err1
+		}
 	}
-	file, err1 = os.OpenFile(fs.path, os.O_WRONLY, 0777)
+	defer file.Close()
+	encode := gob.NewEncoder(file)
+	err1 = encode.Encode(&_E{fs.C, fs.Data})
 	if err1 != nil {
 		return err1
 	}
-
-	defer file.Close()
-	c := strconv.Itoa(int(fs.c))
-	file.Write([]byte(c))
 	return nil
 }
 func (fs *FileStroge) new(total uint64) error {
-	stat, err := os.Stat(fs.path)
-	fs.data = make([]uint8, total/8)
-	if os.IsExist(err) {
-		if stat.Size() != int64(total) {
+	_, err := os.Stat(fs.path)
+	// fs.Data = make([]uint8, total/8)
+	if os.IsNotExist(err) {
+		fs.Data = make([]uint8, total/8)
+	} else {
+
+		f, err1 := os.OpenFile(fs.path, os.O_CREATE, 0600)
+		if err1 != nil {
+			return err1
+		}
+		defer f.Close()
+
+		var temp _E
+		err1 = gob.NewDecoder(f).Decode(&temp)
+		if err1 != nil {
+			return err1
+		}
+		if uint64(cap(temp.Data)) != (total / 8) {
 			return errors.New("Current raw file size error")
 		}
-		file, err := os.Open(fs.path)
-		if err != nil {
-			return err
-			defer file.Close()
-		} else {
-			var i int64 = 0
-			c := make([]byte, 1)
-			for ; i < int64(total/8); i++ {
-				n, _ := file.Read(c)
-				if n != 1 {
-					return errors.New("Read failed.")
-				}
-				fs.data[i] = uint8(c[0])
-			}
-			return nil
-		}
+		fs.Data = temp.Data
+		fs.C = temp.C
 	}
 	return nil
-	// 	file, err1 := os.Create(fs.path)
-	// 	if err1 != nil {
-	// 		return err1
-	// 	}
-	// 	var i uint64 = 1
-	// 	for ; i < total/8; i++ {
-	// 		n, err2 := file.Write([]byte{0})
-	// 		if n != 1 || err2 != nil {
-	// 			return err2
-	// 		}
-	// 	}
-	// 	fs.file = file
-	// } else {
-	// 	if stat.Size() != int64(total/8)-1 {
-	// 		return errors.New("File size error")
-	// 	}
-	// }
 }
 func (fs *FileStroge) count() uint64 {
-	return fs.c
+	return fs.C
 }
