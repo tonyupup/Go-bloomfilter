@@ -81,7 +81,7 @@ func (rs *RedisStroge) count() uint64 {
 	return out
 }
 func (rs *RedisStroge) close() error {
-	return nil
+	return rs.redisConn.Close()
 }
 
 type _E struct {
