@@ -2,7 +2,6 @@ package filter
 
 import (
 	"errors"
-	"hash"
 	"math"
 
 	"github.com/spaolacci/murmur3"
@@ -19,9 +18,9 @@ type BloomFilter interface {
 }
 
 type BloomFiltertor struct {
-	hashFuncWithSeed []hash.Hash64
-	totalBit         uint64
-	stroge           BloomFilterStorger
+	hashFuncSeed []uint32
+	totalBit     uint64
+	stroge       BloomFilterStorger
 }
 
 func NewBloomFilter(stroge BloomFilterStorger, errorRatio float64, totalCount uint64) (BloomFilter, error) {
@@ -37,11 +36,8 @@ func NewBloomFilter(stroge BloomFilterStorger, errorRatio float64, totalCount ui
 	// total := uint64(math.Ceil(float64(-m1) * math.Pow(math.Ln2, 2) / math.Log(errorRetio)))
 
 	k := int(math.Ceil(-math.Log2(errorRatio)))
-	seedFunc := make([]hash.Hash64, k)
-	for index, sed := range seeds[:k] {
-		seedFunc[index] = murmur3.New64WithSeed(sed)
-	}
-	filter := &BloomFiltertor{hashFuncWithSeed: seedFunc, totalBit: m1, stroge: stroge}
+
+	filter := &BloomFiltertor{hashFuncSeed: seeds[:k], totalBit: m1, stroge: stroge}
 	if err := filter.setStroge(stroge, m1); err != nil {
 		return nil, err
 	}
@@ -69,12 +65,10 @@ func (bf *BloomFiltertor) Exist(data []byte) bool {
 }
 
 func (bf *BloomFiltertor) hash(data []byte) []uint64 {
-	hashResult := make([]uint64, len(bf.hashFuncWithSeed))
-	for index, fun := range bf.hashFuncWithSeed {
-		fun.Write(data)
+	hashResult := make([]uint64, len(bf.hashFuncSeed))
+	for index, seed := range bf.hashFuncSeed {
 		// defer fun.Reset()
-		hashResult[index] = fun.Sum64() & (bf.totalBit - 1)
-		fun.Reset()
+		hashResult[index] = murmur3.Sum64WithSeed(data, seed) & (bf.totalBit - 1)
 	}
 	return hashResult
 }
